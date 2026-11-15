@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Required Notice: Copyright 2026 Jonathan Lee (jonjlee@gmail.com)
+  Built with Spatial Presentation. PolyForm Noncommercial License 1.0.0. Commercial use requires permission from the author.
+-->
+<!--
+  Gallery of every presentation in presentations.json, beside this file. list.mjs
+  writes that file from site.json and the .html files in this repository:
+    title, subtitle   shown in the sidebar
+    live              address of the live worker. Adds a Present link to each card.
+    presentations     { path, title, summary, date, image, protected, notes }
+  A presentation's folder is the directory part of its path.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presentations</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper: #f3f0ea;
+    --side: #ebe7df;
+    --card: #fffdf9;
+    --ink: #1c1b19;
+    --dim: #6f6b63;
+    --faint: #a39e94;
+    --line: #d9d4c9;
+    --accent: #b4532a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #121212; --side: #18181a; --card: #1d1d1f; --ink: #f0ede6; --dim: #a09c94; --faint: #6c6963; --line: #2e2e31; --accent: #e89a6c; }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, p, ul { margin: 0; padding: 0; }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Sidebar: title, search, folders */
+  aside {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 44px 28px 28px;
+    background: var(--side);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  aside h1 { font: 400 34px/1.08 var(--serif); letter-spacing: -0.015em; text-wrap: balance; }
+  #subtitle { margin-top: 10px; color: var(--dim); font-size: 14px; text-wrap: pretty; }
+  #search {
+    width: 100%;
+    height: 42px;
+    margin: 32px 0 28px;
+    padding: 0 14px 0 38px;
+    background: var(--card) no-repeat 13px 50% / 15px
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a39e94' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.6'/%3E%3Cpath d='m10.6 10.6 3.4 3.4'/%3E%3C/svg%3E");
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: inherit;
+    font: inherit;
+  }
+  #search::placeholder { color: var(--faint); }
+  .label { margin-bottom: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--faint); }
+  #folders { list-style: none; margin: 0 -10px; }
+  #folders button {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: 0;
+    border-radius: 7px;
+    color: var(--dim);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  #folders button:hover { color: var(--ink); }
+  #folders button[aria-current="true"] { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+  #folders span { color: var(--faint); font-weight: 400; font-variant-numeric: tabular-nums; }
+  aside footer { margin-top: auto; padding-top: 28px; color: var(--faint); font-size: 12px; }
+
+  /* Main: one section per folder, cards in a grid */
+  main { height: 100vh; padding: 44px clamp(24px, 4vw, 64px) 80px; overflow-y: auto; }
+  section + section { margin-top: 56px; }
+  section header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  section h2 { font: 400 24px/1.2 var(--serif); letter-spacing: -0.01em; }
+  section header span { color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 36px 28px; }
+
+  .card { position: relative; }
+  .cover {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 9;
+    background: var(--card);
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px var(--line), 0 14px 30px -18px rgb(0 0 0 / 0.35);
+    overflow: hidden;
+  }
+  .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* No image: the title set large on a ruled sheet. */
+  .cover.plain {
+    padding: 0 9%;
+    background:
+      linear-gradient(var(--line) 0 0) no-repeat 9% 22% / 34px 2px,
+      var(--card);
+    place-items: center start;
+  }
+  .cover.plain b { font: 400 clamp(20px, 2.1vw, 27px)/1.15 var(--serif); letter-spacing: -0.01em; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .lock {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px 4px 7px;
+    background: rgb(20 20 20 / 0.78);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .lock svg { width: 12px; height: 12px; }
+  .card h3 { margin-top: 14px; font-size: 16.5px; font-weight: 620; line-height: 1.3; letter-spacing: -0.005em; text-wrap: balance; }
+  /* The whole card opens the presentation. */
+  .card h3 a::after { content: ""; position: absolute; inset: 0; }
+  .card:hover h3 a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .summary { margin-top: 4px; color: var(--dim); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .meta { display: flex; gap: 14px; margin-top: 8px; color: var(--faint); font-size: 12.5px; }
+  .present { position: relative; color: var(--accent); font-weight: 600; }
+  .present:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  #empty { margin-top: 18vh; color: var(--dim); text-align: center; }
+  #empty b { display: block; margin-bottom: 6px; color: var(--ink); font: 400 24px var(--serif); }
+
+  @media (max-width: 800px) {
+    body { display: block; }
+    aside { height: auto; padding: 28px 20px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
+    aside h1 { font-size: 28px; }
+    #search { margin: 20px 0; }
+    #folders { display: flex; flex-wrap: wrap; gap: 4px; }
+    aside footer { display: none; }
+    main { height: auto; padding: 28px 20px 60px; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1 id="title">Presentations</h1>
+  <p id="subtitle"></p>
+  <input id="search" type="search" placeholder="Search" aria-label="Search presentations" autocomplete="off">
+  <p class="label">Folders</p>
+  <ul id="folders"></ul>
+  <footer>Press / to search</footer>
+</aside>
+<main id="list"></main>
+
+<script type="module">
+  const ALL = '';
+  const site = await (await fetch('presentations.json', { cache: 'no-cache' })).json();
+  const search = document.getElementById('search');
+  const list = document.getElementById('list');
+  const folders = document.getElementById('folders');
+  let folder = ALL;
+
+  const folderOf = (p) => p.path.split('/').slice(0, -1).join(' / ');
+  const escape = (text) => String(text ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const href = (path) => path.split('/').map(encodeURIComponent).join('/');
+  const day = (date) => (date ? new Date(`${date}T12:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+  const LOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.6"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>';
+
+  // One with an access code or speaker notes goes to the worker's start form, which asks for the codes.
+  function presentLink(p) {
+    if (!site.live) return '';
+    const address = new URL(href(p.path), location.href).href;
+    const query = p.protected || p.notes ? 'present' : 'u';
+    return `<a class="present" href="${escape(site.live.replace(/\/$/, ''))}/?${query}=${encodeURIComponent(address)}">Present live</a>`;
+  }
+
+  function card(p) {
+    const cover = p.image
+      ? `<div class="cover"><img src="${escape(href(p.image))}" alt="" loading="lazy">`
+      : `<div class="cover plain"><b>${escape(p.title)}</b>`;
+    return `<article class="card">
+      ${cover}${p.protected ? `<span class="lock">${LOCK}Access code</span>` : ''}</div>
+      <h3><a href="${escape(href(p.path))}">${escape(p.title)}</a></h3>
+      ${p.summary ? `<p class="summary">${escape(p.summary)}</p>` : ''}
+      <p class="meta"><span>${escape(day(p.date))}</span>${presentLink(p)}</p>
+    </article>`;
+  }
+
+  function matches(p, words) {
+    const text = `${p.title} ${p.summary ?? ''} ${folderOf(p)}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  }
+
+  function draw() {
+    const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const found = site.presentations.filter((p) => matches(p, words));
+
+    const counts = new Map();
+    for (const p of found) counts.set(folderOf(p), (counts.get(folderOf(p)) ?? 0) + 1);
+    const names = [...new Set(site.presentations.map(folderOf))].sort((a, b) => a.localeCompare(b));
+    const row = (name, label, count) =>
+      `<li><button type="button" data-folder="${escape(name)}" aria-current="${name === folder}">${escape(label)}<span>${count}</span></button></li>`;
+    folders.innerHTML = row(ALL, 'All', found.length) + names.filter(Boolean).map((name) => row(name, name, counts.get(name) ?? 0)).join('');
+
+    const shown = names
+      .filter((name) => folder === ALL || name === folder)
+      .map((name) => ({ name, items: found.filter((p) => folderOf(p) === name).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')) }))
+      .filter((group) => group.items.length);
+    list.innerHTML = shown.length
+      ? shown
+          .map(({ name, items }) => `<section><header><h2>${escape(name || 'Presentations')}</h2><span>${items.length}</span></header><div class="grid">${items.map(card).join('')}</div></section>`)
+          .join('')
+      : `<p id="empty"><b>Nothing found</b>${site.presentations.length ? 'Try a different search or folder.' : 'No presentations are published yet.'}</p>`;
+  }
+
+  document.title = site.title;
+  document.getElementById('title').textContent = site.title;
+  document.getElementById('subtitle').textContent = site.subtitle ?? '';
+  search.addEventListener('input', draw);
+  folders.addEventListener('click', (e) => {
+    const button = e.target.closest('button');
+    if (!button) return;
+    folder = button.dataset.folder;
+    draw();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || document.activeElement === search) return;
+    e.preventDefault();
+    search.focus();
+  });
+  draw();
+</script>
+</body>
+</html>

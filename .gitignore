@@ -1,0 +1,9 @@
+# Written by list.mjs after each publish and again by the Pages workflow on deploy
+presentations.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

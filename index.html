@@ -5,12 +5,14 @@
   Built with Spatial Presentation. PolyForm Noncommercial License 1.0.0. Commercial use requires permission from the author.
 -->
 <!--
-  Gallery of every presentation in presentations.json, beside this file. list.mjs
+  Gallery of every presentation in presentations.json, beside this file. rebuild.mjs
   writes that file from site.json and the .html files in this repository:
     title, subtitle   shown in the sidebar
-    live              address of the live worker. Adds a Present link to each card.
-    presentations     { path, title, summary, date, image, protected, notes }
-  A presentation's folder is the directory part of its path.
+    live              address of the live worker. Adds a Present link to each card
+                      whose presentation is live.
+    presentations     { path, title, summary, date, image, protected, notes, live }
+  A presentation's folder is the directory part of its path. The top level,
+  listed as Home, shows first. A search looks through every folder.
 -->
 <head>
 <meta charset="utf-8">
@@ -173,12 +175,12 @@
 <main id="list"></main>
 
 <script type="module">
-  const ALL = '';
+  const TOP = '';
   const site = await (await fetch('presentations.json', { cache: 'no-cache' })).json();
   const search = document.getElementById('search');
   const list = document.getElementById('list');
   const folders = document.getElementById('folders');
-  let folder = ALL;
+  let folder = TOP;
 
   const folderOf = (p) => p.path.split('/').slice(0, -1).join(' / ');
   const escape = (text) => String(text ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -188,7 +190,7 @@
 
   // One with an access code or speaker notes goes to the worker's start form, which asks for the codes.
   function presentLink(p) {
-    if (!site.live) return '';
+    if (!site.live || !p.live) return '';
     const address = new URL(href(p.path), location.href).href;
     const query = p.protected || p.notes ? 'present' : 'u';
     return `<a class="present" href="${escape(site.live.replace(/\/$/, ''))}/?${query}=${encodeURIComponent(address)}">Present live</a>`;
@@ -217,20 +219,22 @@
 
     const counts = new Map();
     for (const p of found) counts.set(folderOf(p), (counts.get(folderOf(p)) ?? 0) + 1);
-    const names = [...new Set(site.presentations.map(folderOf))].sort((a, b) => a.localeCompare(b));
-    const row = (name, label, count) =>
-      `<li><button type="button" data-folder="${escape(name)}" aria-current="${name === folder}">${escape(label)}<span>${count}</span></button></li>`;
-    folders.innerHTML = row(ALL, 'All', found.length) + names.filter(Boolean).map((name) => row(name, name, counts.get(name) ?? 0)).join('');
+    const names = [...new Set([TOP, ...site.presentations.map(folderOf)])].sort((a, b) => a.localeCompare(b));
+    const row = (name) =>
+      `<li><button type="button" data-folder="${escape(name)}" aria-current="${!words.length && name === folder}">${escape(name || 'Home')}<span>${counts.get(name) ?? 0}</span></button></li>`;
+    folders.innerHTML = names.map(row).join('');
 
     const shown = names
-      .filter((name) => folder === ALL || name === folder)
+      .filter((name) => words.length || name === folder)
       .map((name) => ({ name, items: found.filter((p) => folderOf(p) === name).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')) }))
       .filter((group) => group.items.length);
     list.innerHTML = shown.length
       ? shown
-          .map(({ name, items }) => `<section><header><h2>${escape(name || 'Presentations')}</h2><span>${items.length}</span></header><div class="grid">${items.map(card).join('')}</div></section>`)
+          .map(({ name, items }) => `<section><header><h2>${escape(name || 'Home')}</h2><span>${items.length}</span></header><div class="grid">${items.map(card).join('')}</div></section>`)
           .join('')
-      : `<p id="empty"><b>Nothing found</b>${site.presentations.length ? 'Try a different search or folder.' : 'No presentations are published yet.'}</p>`;
+      : words.length
+        ? '<p id="empty"><b>Nothing found</b>Try a different search.</p>'
+        : '<p id="empty"><b>No files in this folder</b></p>';
   }
 
   document.title = site.title;
@@ -241,6 +245,7 @@
     const button = e.target.closest('button');
     if (!button) return;
     folder = button.dataset.folder;
+    search.value = '';
     draw();
   });
   window.addEventListener('keydown', (e) => {

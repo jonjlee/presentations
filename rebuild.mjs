@@ -5,9 +5,13 @@
  * removing one is a delete. Runs after each publish and again in the Pages workflow.
  *
  * A presentation's card comes from the file itself:
- *   <meta name="present-card">   title, summary, date, notes. Written by publish.mjs.
+ *   <meta name="present-card">   title, summary, date, notes, live. Written by publish.mjs.
  *   <title>                      the title, for a page that was copied in by hand
  *   an image with the same name  the card picture, e.g. deck.jpg beside deck.html
+ *
+ * live means the page speaks the live worker's postMessage protocol, from live.ts in
+ * the templates, so the gallery offers to present it. A card without live has its
+ * file searched for the protocol instead. An encrypted page cannot be searched.
  */
 
 import { existsSync, openSync, readSync, closeSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -18,6 +22,8 @@ const root = dirname(fileURLToPath(import.meta.url));
 const IMAGE_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
 // Cards and titles sit in the head. Presentations are megabytes, so only the start is read.
 const HEAD_BYTES = 64 * 1024;
+// live.ts announcing itself, minified or not. publish.mjs uses the same test.
+const LIVE_PROTOCOL = /present\s*:\s*["'`]ready["'`]/;
 
 function htmlFiles(folder = '') {
   return readdirSync(join(root, folder), { withFileTypes: true }).flatMap((entry) => {
@@ -41,12 +47,14 @@ const unescape = (text) => text.replace(/&(amp|lt|gt|quot);/g, (_, name) => ({ a
 function describe(path) {
   const head = readHead(path);
   const card = head.match(/<meta name="present-card" content="([^"]*)">/)?.[1];
+  const fields = card ? JSON.parse(unescape(card)) : {};
   const name = path.slice(0, -'.html'.length);
   const image = IMAGE_TYPES.map((type) => `${name}.${type}`).find((file) => existsSync(join(root, file)));
   return {
     path,
     title: unescape(head.match(/<title>([^<]*)<\/title>/)?.[1] ?? '') || name.split('/').at(-1),
-    ...(card ? JSON.parse(unescape(card)) : {}),
+    ...fields,
+    live: fields.live ?? LIVE_PROTOCOL.test(readFileSync(join(root, path), 'utf8')),
     image,
     protected: head.includes('<meta name="present-protected"'),
   };
